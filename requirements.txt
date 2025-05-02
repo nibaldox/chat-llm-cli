@@ -1,0 +1,7 @@
+typer
+openai
+requests
+# Para Gemini, ajustar según SDK disponible
+ollama-python
+# Para la TUI
+textual
