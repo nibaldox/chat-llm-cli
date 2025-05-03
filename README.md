@@ -65,10 +65,23 @@ python -m chat_cli tui --provider [openai|ollama|gemini|anthropic] --model <mode
 ```
 
 La TUI ofrece las siguientes funcionalidades:
-- Historial de mensajes con scroll
-- Atajos de teclado (Ctrl+L: limpiar historial, Ctrl+E: exportar, Ctrl+H: ayuda, etc.)
-- Comandos de texto (escribir `/help` para ver todos los comandos disponibles)
-- Soporte para Model Context Protocol (M.C.P) con Anthropic
++ - Historial de mensajes con scroll
++ - Limpieza inicial del chat al iniciar (muestra mensaje de bienvenida)
++ - Comando `/loadhistory` para acceder a chats anteriores
++ - Métrica de rendimiento: tokens por segundo (TPS) en la barra de estado
++ - Atajos de teclado:
++   - Ctrl+L: Limpiar historial
++   - Ctrl+C: Limpiar pantalla
++   - Ctrl+E: Exportar historial a texto plano
++   - Ctrl+H: Mostrar ayuda
++   - Ctrl+Q: Salir de la aplicación
++ - Comandos de texto:
++   - `/help` o `/ayuda`: Mostrar ayuda
++   - `/clear` o `/limpiar`: Limpiar pantalla
++   - `/clearhistory` o `/limpiarhistorial`: Limpiar historial
++   - `/export` o `/exportar`: Exportar historial
++   - `/loadhistory` o `/cargarhistorial`: Cargar chats anteriores
++   - `/mcp on|off` o `/mcp activar|desactivar`: Activar/desactivar Model Context Protocol
 
 ## Configuración de claves/API
 - **OpenAI**: Define la variable de entorno `OPENAI_API_KEY` o edita el código para tu clave.
