@@ -48,23 +48,18 @@ Realizar una CLI en Python para chatear con modelos LLM (Ollama, OpenAI y Gemini
 - `setup.py` o `pyproject.toml`.
 - Entry point `chat-cli`.
 
-### Fase 9 – Layout
-```
-chat_cli/
-├── chat_cli/       # código fuente
-│   ├── __main__.py
-│   ├── cli.py
-│   ├── providers/
-│   │   ├── openai.py
-│   │   ├── gemini.py
-│   │   └── ollama.py
-│   └── history.py
-└── requirements.txt
-```
+### Fase 9 – Layout y Mejoras en la TUI
+- [ ] Analizar y mejorar la experiencia de usuario en la interfaz textual (TUI).
+- [ ] Diseñar layout TUI con Textual (Header, ScrollView, Input, Footer).
+- [ ] Crear `chat_cli/tui.py` e integrar comando `tui` en `cli.py`.
+- [ ] Optimizar navegación, visualización de mensajes, manejo de errores y atajos.
+- [ ] Gestionar streaming de tokens en la TUI.
+- [ ] Agregar dependencia `textual` a `requirements.txt`.
+- [ ] Documentar la TUI en README y en `plan_implementacion.md`.
+- [ ] Mantener el código limpio, ordenado y bien comentado.
 
-### Fase 10 – Interfaz de Usuario en Terminal (TUI)
-- [ ] Diseñar layout TUI con Textual (Header, ScrollView, Input, Footer)
-- [ ] Crear `chat_cli/tui.py` e integrar comando `tui` en `cli.py`
-- [ ] Gestionar streaming de tokens en la TUI
-- [ ] Agregar dependencia `textual` a `requirements.txt`
-- [ ] Documentar la TUI en README y en `PLAN_IMPLEMENTACION.md`
+### Fase 10 – Integración con Model Context Protocol (M.C.P) de Anthropic
+- [ ] Investigar la documentación oficial de M.C.P.
+- [ ] Diseñar e implementar la integración de M.C.P como opción de proveedor/modelo.
+- [ ] Añadir ejemplos de uso y documentación en el README.
+- [ ] Garantizar modularidad y facilidad de mantenimiento en la integración.

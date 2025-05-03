@@ -3,6 +3,7 @@ from .providers import get_provider_names
 from .providers.openai import OpenAIProvider
 from .providers.ollama import OllamaProvider
 from .providers.gemini import GeminiProvider
+from .providers.anthropic import AnthropicProvider
 from .tui import ChatApp
 from .history import load_history, save_history, add_message, clear_history, export_history_txt
 
@@ -10,9 +11,10 @@ app = typer.Typer()
 
 @app.command()
 def chat(
-    provider: str = typer.Option(..., help="Proveedor LLM (openai, gemini, ollama)"),
+    provider: str = typer.Option(..., help="Proveedor LLM (openai, gemini, ollama, anthropic)"),
     model: str = typer.Option(None, help="Modelo a usar"),
-    stream: bool = typer.Option(False, help="Activar streaming de tokens (si el proveedor lo soporta)")
+    stream: bool = typer.Option(False, help="Activar streaming de tokens (si el proveedor lo soporta)"),
+    mcp: bool = typer.Option(False, help="Activar Model Context Protocol (solo para Anthropic)")
 ):
     """Inicia una sesión de chat con el proveedor/modelo seleccionado."""
     typer.echo(f"Chat iniciado con proveedor: {provider}, modelo: {model}")
@@ -25,6 +27,10 @@ def chat(
             p = OllamaProvider(model=model or "llama2")
         elif provider == "gemini":
             p = GeminiProvider()
+        elif provider == "anthropic":
+            p = AnthropicProvider(model=model or "claude-3-opus-20240229", mcp_enabled=mcp)
+            if mcp:
+                typer.echo("Model Context Protocol (M.C.P) activado para Anthropic.")
         else:
             typer.secho("Proveedor no soportado.", fg=typer.colors.RED)
             raise typer.Exit(1)
@@ -86,9 +92,10 @@ def exportar_historial_txt(destino: str = typer.Argument("historial.txt")):
 
 @app.command()
 def tui(
-    provider: str = typer.Option(..., help="Proveedor LLM (openai, gemini, ollama)"),
+    provider: str = typer.Option(..., help="Proveedor LLM (openai, gemini, ollama, anthropic)"),
     model: str = typer.Option(None, help="Modelo a usar"),
-    stream: bool = typer.Option(False, help="Activar streaming de tokens (si el proveedor lo soporta)")
+    stream: bool = typer.Option(False, help="Activar streaming de tokens (si el proveedor lo soporta)"),
+    mcp: bool = typer.Option(False, help="Activar Model Context Protocol (solo para Anthropic)")
 ):
     """Inicia la interfaz TUI de chat."""
     typer.echo(f"Iniciando TUI con proveedor: {provider}, modelo: {model}, stream: {stream}")
@@ -101,6 +108,10 @@ def tui(
             p = OllamaProvider(model=model or "llama2")
         elif provider == "gemini":
             p = GeminiProvider()  # Gemini puede no necesitar modelo específico aquí
+        elif provider == "anthropic":
+            p = AnthropicProvider(model=model or "claude-3-opus-20240229", mcp_enabled=mcp)
+            if mcp:
+                typer.echo("Model Context Protocol (M.C.P) activado para Anthropic.")
         else:
             typer.secho("Proveedor no soportado.", fg=typer.colors.RED)
             raise typer.Exit(1)

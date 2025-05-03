@@ -1,12 +1,12 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, ScrollableContainer
-from textual.widgets import Header, Footer, Input, Static
+from textual.widgets import Header, Footer, Input, Static, Label
 from textual.binding import Binding
 from rich.panel import Panel
 from rich.align import Align
+from rich.text import Text
 import asyncio
 import os
-import time
 from datetime import datetime
 from .history import load_history, save_history, clear_history, export_history_txt
 
@@ -18,8 +18,15 @@ EXPORT_FILE = "historial.txt"
 MCP_ENABLED = False  # Activar cuando se implemente completamente
 
 class ChatApp(App):
-    """Textual-based TUI para Chat CLI con historial, atajos y mejoras visuales."""
+    """Textual-based TUI para Chat CLI con historial, atajos y mejoras visuales.
     
+    Características:
+    - Carga y muestra historial automáticamente al iniciar
+    - Atajos de teclado para acciones comunes
+    - Manejo de errores y mensajes informativos
+    - Soporte para streaming de tokens
+    - Preparado para integración con Model Context Protocol (M.C.P)
+    """
     TITLE = "Chat LLM TUI"
     BINDINGS = [
         Binding("ctrl+l", "limpiar_historial", "Limpiar historial"),
@@ -30,19 +37,21 @@ class ChatApp(App):
     ]
 
     def __init__(self, provider, model, stream=False):
-        """Inicializa la aplicación TUI con el proveedor y modelo seleccionados."""
+        """Inicializa la aplicación TUI con el proveedor y modelo seleccionados.
+        
+        Args:
+            provider: Instancia del proveedor LLM (OpenAI, Ollama, Gemini, etc.)
+            model: Nombre del modelo a utilizar
+            stream: Si es True, utiliza streaming de tokens (si el proveedor lo soporta)
+        """
         super().__init__()
         self.provider = provider
         self.model = model
         self.stream = stream
         self.history = []
         self.token_count = 0
-        self.tokens_per_second = 0.0
-        self.start_time = 0.0
-        self.last_token_time = 0.0
         self.last_activity = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mcp_enabled = MCP_ENABLED
-        self.status_text = f"Modelo: {model} | Tokens: 0 | TPS: 0.0 | Streaming: {'Activado' if stream else 'Desactivado'} | MCP: {'Desactivado'}"
 
     def load_and_show_history(self):
         """Carga el historial desde archivo y lo muestra en la TUI al iniciar."""
@@ -53,15 +62,10 @@ class ChatApp(App):
                 self.history = []
         else:
             self.history = []
-            
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        
-        # Eliminar todos los widgets hijos (en lugar de clear())
-        widgets_to_remove = list(panel.children)
-        for widget in widgets_to_remove:
+        # En lugar de clear(), eliminamos todos los widgets hijos
+        for widget in panel.children:
             widget.remove()
-            
-        # Mostrar mensajes del historial
         for msg in self.history:
             role = msg.get("role", "user")
             content = msg.get("content", "")
@@ -69,32 +73,34 @@ class ChatApp(App):
             color = "green" if role == "user" else "blue"
             user_label = "Tú" if role == "user" else "LLM"
             panel.mount(Static(Align(Panel(content, title=user_label, border_style=color), align=align)))
-            
         panel.scroll_end(animate=False)
 
     def compose(self) -> ComposeResult:
         """Define la estructura de la interfaz de usuario."""
+        # Cabecera con información del modelo
         yield Header()
+        
+        # Panel principal de mensajes con scroll
         yield ScrollableContainer(id="messages_panel")
+        
+        # Panel de entrada de texto
         yield Input(placeholder="Escribe un mensaje... (Ctrl+H para ayuda)", id="input_panel")
-        yield Footer()
-        yield Static(self.status_text, id="status_text")
+        
+        # Pie de página con información y estadísticas
+        status_text = f"Modelo: {self.model} | Tokens: {self.token_count} | Streaming: {'Activado' if self.stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
+        yield Footer(Static(status_text, id="status_bar"), id="footer")
 
     async def on_mount(self) -> None:
-        """Se ejecuta al montar la aplicación."""
+        # Enfocar input al iniciar y mostrar historial
         self.set_focus(self.query_one("#input_panel", Input))
-        # Limpiar panel al iniciar
-        panel = self.query_one("#messages_panel", ScrollableContainer)
-        widgets_to_remove = list(panel.children)
-        for widget in widgets_to_remove:
-            widget.remove()
-        # Mensaje de bienvenida
-        panel.mount(Static(Align(Panel(
-            "Chat limpio. Escribe /loadhistory para ver chats anteriores.", title="Info", border_style="cyan"
-        ), align="center")))
+        self.load_and_show_history()
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Gestiona el envío de mensajes y la respuesta del modelo."""
+        """Gestiona el envío de mensajes y la respuesta del modelo.
+        
+        Procesa el texto ingresado, lo muestra en la interfaz, lo guarda en el historial
+        y obtiene la respuesta del modelo (con o sin streaming).
+        """
         text = event.value.strip()
         if not text:
             return
@@ -106,7 +112,6 @@ class ChatApp(App):
             return
             
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        
         # Montar mensaje de usuario a la izquierda
         timestamp = datetime.now().strftime("%H:%M:%S")
         user_widget = Static(Align(Panel(
@@ -152,26 +157,10 @@ class ChatApp(App):
                 ), align="right"))
                 await panel.mount(resp_widget)
                 
-                # Iniciar conteo de tokens por segundo
-                self.start_time = time.time()
-                self.last_token_time = self.start_time
-                tokens_in_window = 0
-                time_window = 1.0  # Ventana de 1 segundo para calcular TPS
-                
                 # Procesar tokens en streaming
                 full_response = ""
                 for token in self.provider.stream_message(text):
-                    current_time = time.time()
                     self.token_count += 1
-                    tokens_in_window += 1
-                    
-                    # Calcular tokens por segundo en la ventana actual
-                    elapsed = current_time - self.last_token_time
-                    if elapsed >= time_window:
-                        self.tokens_per_second = tokens_in_window / elapsed
-                        self.last_token_time = current_time
-                        tokens_in_window = 0
-                    
                     full_response += token
                     resp_widget.update(Align(Panel(
                         full_response, 
@@ -181,11 +170,6 @@ class ChatApp(App):
                     panel.scroll_end(animate=False)
                     self._update_status_bar()
                     await asyncio.sleep(0)
-                
-                # Calcular TPS final
-                total_time = time.time() - self.start_time
-                if total_time > 0:
-                    self.tokens_per_second = len(full_response) / total_time
                 
                 # Guardar respuesta en historial
                 self.history.append({
@@ -234,7 +218,11 @@ class ChatApp(App):
             panel.scroll_end(animate=False)
 
     async def _process_command(self, text):
-        """Procesa comandos especiales que comienzan con /."""
+        """Procesa comandos especiales que comienzan con /.
+        
+        Args:
+            text: El texto del comando ingresado
+        """
         panel = self.query_one("#messages_panel", ScrollableContainer)
         command = text.lower().strip()
         
@@ -246,10 +234,6 @@ class ChatApp(App):
             await self.action_limpiar_historial()
         elif command == "/export" or command == "/exportar":
             await self.action_exportar_historial()
-        elif command == "/loadhistory" or command == "/cargarhistorial":
-            # Cargar chats anteriores
-            self.load_and_show_history()
-            self._update_status_bar()
         elif command.startswith("/mcp"):
             # Comando para activar/desactivar MCP (pendiente implementación completa)
             if " on" in command or " activar" in command:
@@ -283,9 +267,8 @@ class ChatApp(App):
         
     def _update_status_bar(self):
         """Actualiza la barra de estado con información actualizada."""
-        self.status_text = f"Modelo: {self.model} | Tokens: {self.token_count} | TPS: {self.tokens_per_second:.1f} | Streaming: {'Activado' if self.stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
-        status_widget = self.query_one("#status_text", Static)
-        status_widget.update(self.status_text)
+        status_text = f"Modelo: {self.model} | Tokens: {self.token_count} | Streaming: {'Activado' if self.stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
+        self.query_one("#status_bar", Static).update(status_text)
     
     async def action_limpiar_historial(self):
         """Limpia el historial de la sesión y del archivo."""
@@ -293,13 +276,10 @@ class ChatApp(App):
         self.history = []
         self.token_count = 0
         self._update_status_bar()
-        
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        # Eliminar todos los widgets hijos (en lugar de clear())
-        widgets_to_remove = list(panel.children)
-        for widget in widgets_to_remove:
+        # En lugar de clear(), eliminamos todos los widgets hijos
+        for widget in panel.children:
             widget.remove()
-            
         panel.mount(Static(Align(Panel(
             "Historial limpiado correctamente.", 
             title="Info", 
@@ -310,12 +290,9 @@ class ChatApp(App):
     async def action_limpiar_pantalla(self):
         """Limpia la pantalla sin borrar el historial guardado."""
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        
-        # Eliminar todos los widgets hijos (en lugar de clear())
-        widgets_to_remove = list(panel.children)
-        for widget in widgets_to_remove:
+        # En lugar de clear(), eliminamos todos los widgets hijos
+        for widget in panel.children:
             widget.remove()
-            
         panel.mount(Static(Align(Panel(
             "Pantalla limpiada. El historial sigue guardado.", 
             title="Info", 
@@ -353,13 +330,12 @@ class ChatApp(App):
         - Ctrl+E: Exportar historial a texto plano.
         - Ctrl+H: Mostrar esta ayuda.
         - Ctrl+Q: Salir de la aplicación.
-
+        
         COMANDOS (escribir en el campo de texto):
         - /help o /ayuda: Muestra esta ayuda.
         - /clear o /limpiar: Limpia la pantalla.
         - /clearhistory o /limpiarhistorial: Borra todo el historial.
         - /export o /exportar: Exporta el historial a texto.
-        - /loadhistory o /cargarhistorial: Carga chats anteriores guardados.
         - /mcp on|off: Activa/desactiva Model Context Protocol (experimental).
         """
         panel.mount(Static(Align(Panel(
