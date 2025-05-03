@@ -21,6 +21,7 @@ DEFAULT_MODEL = "claude-3-opus-20240229"
 # Constantes para Model Context Protocol (M.C.P)
 MCP_ENABLED = False  # Por defecto desactivado hasta configuración completa
 MCP_VERSION = "0.1.0"  # Versión del protocolo implementada
+MCP_API_URL = "https://api.anthropic.com/v1/mcp/chat"
 
 class AnthropicProvider:
     """
@@ -66,9 +67,12 @@ class AnthropicProvider:
                 "max_tokens": 1024
             }
             
-            # Añadir configuración MCP si está habilitado
+            # Usar M.C.P si está habilitado
             if self.mcp_enabled:
-                data["mcp_config"] = self._get_mcp_config()
+                payload = self.build_mcp_request(prompt, {})
+                content = self.send_mcp_request(payload)
+                self.history.append({"role": "assistant", "content": content})
+                return content
             
             # Realizar la solicitud a la API
             headers = {
@@ -120,9 +124,11 @@ class AnthropicProvider:
                 "stream": True
             }
             
-            # Añadir configuración MCP si está habilitado
+            # Usar M.C.P en streaming si está habilitado
             if self.mcp_enabled:
-                data["mcp_config"] = self._get_mcp_config()
+                payload = self.build_mcp_request(prompt, {})
+                yield from self.send_mcp_request(payload, stream=True)
+                return
             
             # Realizar la solicitud a la API
             headers = {
@@ -253,3 +259,44 @@ class AnthropicProvider:
     def clear_mcp_servers(self) -> None:
         """Elimina todos los servidores MCP registrados."""
         self.mcp_servers = []
+    
+    def build_mcp_request(self, prompt: str, tools_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Construye el payload conforme a la especificación M.C.P.
+        """
+        return {
+            "model": self.model,
+            "prompt": prompt,
+            "tools_context": tools_context or {},
+            "max_tokens": 1024,
+            "mcp_version": MCP_VERSION
+        }
+    
+    def send_mcp_request(self, payload: Dict[str, Any], stream: bool = False) -> Union[str, Generator[str, None, None]]:
+        """
+        Envía la solicitud M.C.P al endpoint dedicado.
+        """
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "MCP-Version": MCP_VERSION
+        }
+        if stream:
+            response = requests.post(MCP_API_URL, headers=headers, json=payload, stream=True)
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if line.startswith(b"data: "):
+                    line = line[6:]
+                if line == b"[DONE]":
+                    break
+                data = json.loads(line)
+                delta = data.get("response", "")
+                if delta:
+                    yield delta
+        else:
+            response = requests.post(MCP_API_URL, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json().get("response", "")
