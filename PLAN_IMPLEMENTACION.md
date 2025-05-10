@@ -48,15 +48,16 @@ Realizar una CLI en Python para chatear con modelos LLM (Ollama, OpenAI y Gemini
 - `setup.py` o `pyproject.toml`.
 - Entry point `chat-cli`.
 
-### Fase 9 – Layout y Mejoras en la TUI
-- [ ] Analizar y mejorar la experiencia de usuario en la interfaz textual (TUI).
-- [ ] Diseñar layout TUI con Textual (Header, ScrollView, Input, Footer).
-- [ ] Crear `chat_cli/tui.py` e integrar comando `tui` en `cli.py`.
-- [ ] Optimizar navegación, visualización de mensajes, manejo de errores y atajos.
-- [ ] Gestionar streaming de tokens en la TUI.
-- [ ] Agregar dependencia `textual` a `requirements.txt`.
-- [ ] Documentar la TUI en README y en `plan_implementacion.md`.
-- [ ] Mantener el código limpio, ordenado y bien comentado.
+### Fase 9 – Layout, Markdown y Performance en la TUI
+- [x] Agregar dependencia `textual` a `requirements.txt` y crear `chat_cli/tui.py`.
+- [x] Integrar comando `tui` en `cli.py`.
+- [x] Estilizar TUI con Rich usando `Panel`, `Align` y `Markdown`.
+- [x] Renderizar respuestas en Markdown en la TUI.
+- [x] Optimizar streaming: agrupar tokens (batch <5 tokens o 200ms) antes de actualizar panel.
+- [x] Reducir renders usando `widget.update` y atributos reactivos en lugar de remount completo.
+- [x] Lazy import de `rich.markdown.Markdown` para mejorar tiempo de inicio.
+- [x] Usar atributos reactivos (`reactive`) para `status_text`, `history`, `token_count` y `tokens_per_second`.
+- [ ] Documentar mejoras en README y `PLAN_IMPLEMENTACION.md`.
 
 ### Fase 10 – Integración con Model Context Protocol (M.C.P) de Anthropic
 - [ ] Investigar la documentación oficial de M.C.P.

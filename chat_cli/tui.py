@@ -4,11 +4,13 @@ from textual.widgets import Header, Footer, Input, Static
 from textual.binding import Binding
 from rich.panel import Panel
 from rich.align import Align
+from rich.markdown import Markdown
 import asyncio
 import os
 import time
 from datetime import datetime
 from .history import load_history, save_history, clear_history, export_history_txt
+from textual.reactive import reactive
 
 # Archivo de historial por defecto
 HIST_FILE = "history.json"
@@ -29,48 +31,37 @@ class ChatApp(App):
         Binding("ctrl+q", "salir", "Salir")
     ]
 
+    # Reactive attributes auto-update UI
+    status_text: str = reactive("")
+    history: list = reactive([])
+    token_count: int = reactive(0)
+    tokens_per_second: float = reactive(0.0)
+
     def __init__(self, provider, model, stream=False):
         """Inicializa la aplicación TUI con el proveedor y modelo seleccionados."""
         super().__init__()
+        # Evitar que watch_history se ejecute durante inicialización
+        self._initializing = True
         self.provider = provider
         self.model = model
         self.stream = stream
-        self.history = []
+        # reactive history will load on mount
         self.token_count = 0
         self.tokens_per_second = 0.0
         self.start_time = 0.0
         self.last_token_time = 0.0
         self.last_activity = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mcp_enabled = MCP_ENABLED
-        self.status_text = f"Modelo: {model} | Tokens: 0 | TPS: 0.0 | Streaming: {'Activado' if stream else 'Desactivado'} | MCP: {'Desactivado'}"
+        # Prepare initial status (para asignar tras montaje)
+        self._initial_status_text = f"Modelo: {model} | Tokens: 0 | TPS: 0.0 | Streaming: {'Activado' if stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
 
     def load_and_show_history(self):
         """Carga el historial desde archivo y lo muestra en la TUI al iniciar."""
-        if os.path.exists(HIST_FILE):
-            try:
-                self.history = load_history(HIST_FILE)
-            except Exception:
-                self.history = []
-        else:
+        # Carga reactiva de historial; la UI se actualizará en watch_history
+        try:
+            self.history = load_history(HIST_FILE)
+        except Exception:
             self.history = []
-            
-        panel = self.query_one("#messages_panel", ScrollableContainer)
-        
-        # Eliminar todos los widgets hijos (en lugar de clear())
-        widgets_to_remove = list(panel.children)
-        for widget in widgets_to_remove:
-            widget.remove()
-            
-        # Mostrar mensajes del historial
-        for msg in self.history:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            align = "left" if role == "user" else "right"
-            color = "green" if role == "user" else "blue"
-            user_label = "Tú" if role == "user" else "LLM"
-            panel.mount(Static(Align(Panel(content, title=user_label, border_style=color), align=align)))
-            
-        panel.scroll_end(animate=False)
 
     def compose(self) -> ComposeResult:
         """Define la estructura de la interfaz de usuario."""
@@ -92,6 +83,12 @@ class ChatApp(App):
         panel.mount(Static(Align(Panel(
             "Chat limpio. Escribe /loadhistory para ver chats anteriores.", title="Info", border_style="cyan"
         ), align="center")))
+        # Set initial status_text
+        self.status_text = self._initial_status_text
+        # Load history after UI listo
+        self.load_and_show_history()
+        # Montaje completado
+        self._initializing = False
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Gestiona el envío de mensajes y la respuesta del modelo."""
@@ -105,28 +102,19 @@ class ChatApp(App):
             event.input.value = ""
             return
             
+        # Guardar usuario en historial; UI se actualiza en watch_history
+        self.last_activity = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.history = self.history + [{"role": "user", "content": text, "timestamp": self.last_activity}]
+        save_history(self.history, HIST_FILE)
+        # Mostrar mensaje del usuario inmediatamente
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        
-        # Montar mensaje de usuario a la izquierda
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        user_widget = Static(Align(Panel(
-            text, 
-            title=f"Tú [{timestamp}]", 
-            border_style="green"
-        ), align="left"))
+        user_widget = Static(Align(Panel(text, title=f"Tú [{self.last_activity}]", border_style="green"), align="left"))
         await panel.mount(user_widget)
         panel.scroll_end(animate=False)
         event.input.value = ""
         
         # Actualizar última actividad
         self.last_activity = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Guardar mensaje en historial
-        self.history.append({"role": "user", "content": text, "timestamp": self.last_activity})
-        save_history(self.history, HIST_FILE)
-        
-        # Actualizar barra de estado
-        self._update_status_bar()
         
         # Montar respuesta del modelo en streaming o no
         try:
@@ -136,6 +124,7 @@ class ChatApp(App):
                 title="Estado", 
                 border_style="yellow"
             ), align="center"))
+            panel = self.query_one("#messages_panel", ScrollableContainer)
             await panel.mount(thinking_widget)
             panel.scroll_end(animate=False)
             
@@ -160,6 +149,9 @@ class ChatApp(App):
                 
                 # Procesar tokens en streaming
                 full_response = ""
+                batch_tokens = []
+                flush_interval = 0.2  # segundos
+                last_flush = time.time()
                 for token in self.provider.stream_message(text):
                     current_time = time.time()
                     self.token_count += 1
@@ -173,13 +165,19 @@ class ChatApp(App):
                         tokens_in_window = 0
                     
                     full_response += token
-                    resp_widget.update(Align(Panel(
-                        full_response, 
-                        title=f"LLM [{timestamp}]", 
-                        border_style="blue"
-                    ), align="right"))
-                    panel.scroll_end(animate=False)
-                    self._update_status_bar()
+                    batch_tokens.append(token)
+                    # Flush si alcanza tamaño o intervalo
+                    if len(batch_tokens) >= 5 or (current_time - last_flush) >= flush_interval:
+                        from rich.markdown import Markdown
+                        resp_widget.update(Align(Panel(
+                            Markdown(full_response),
+                            title=f"LLM [{timestamp}]",
+                            border_style="blue"
+                        ), align="right"))
+                        panel.scroll_end(animate=False)
+                        self._update_status_bar()
+                        batch_tokens.clear()
+                        last_flush = current_time
                     await asyncio.sleep(0)
                 
                 # Calcular TPS final
@@ -187,14 +185,20 @@ class ChatApp(App):
                 if total_time > 0:
                     self.tokens_per_second = len(full_response) / total_time
                 
-                # Guardar respuesta en historial
-                self.history.append({
-                    "role": "assistant", 
-                    "content": full_response, 
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
+                # Flush final de tokens restantes
+                if batch_tokens:
+                    from rich.markdown import Markdown
+                    resp_widget.update(Align(Panel(
+                        Markdown(full_response),
+                        title=f"LLM [{timestamp}]",
+                        border_style="blue"
+                    ), align="right"))
+                    panel.scroll_end(animate=False)
+                
+                # Guardar asistente en historial; UI se actualiza en watch_history
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.history = self.history + [{"role": "assistant", "content": full_response, "timestamp": ts}]
                 save_history(self.history, HIST_FILE)
-                panel.scroll_end(animate=False)
             else:
                 # Obtener respuesta completa
                 response = self.provider.send_message(text)
@@ -202,30 +206,18 @@ class ChatApp(App):
                 # Eliminar indicador de pensando
                 thinking_widget.remove()
                 
-                # Mostrar respuesta
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                model_widget = Static(Align(Panel(
-                    response, 
-                    title=f"LLM [{timestamp}]", 
-                    border_style="blue"
-                ), align="right"))
-                await panel.mount(model_widget)
-                panel.scroll_end(animate=False)
-                
-                # Actualizar conteo de tokens y guardar en historial
+                # Guardar asistente en historial; UI se actualiza en watch_history
                 self.token_count += len(response.split())
                 self._update_status_bar()
-                self.history.append({
-                    "role": "assistant", 
-                    "content": response, 
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.history = self.history + [{"role": "assistant", "content": response, "timestamp": ts}]
                 save_history(self.history, HIST_FILE)
         except Exception as e:
             # Manejar errores
             if 'thinking_widget' in locals():
                 thinking_widget.remove()
             error_msg = f"[Error] {e}"
+            panel = self.query_one("#messages_panel", ScrollableContainer)
             await panel.mount(Static(Align(Panel(
                 error_msg, 
                 title="Error", 
@@ -246,8 +238,8 @@ class ChatApp(App):
             await self.action_limpiar_historial()
         elif command == "/export" or command == "/exportar":
             await self.action_exportar_historial()
-        elif command == "/loadhistory" or command == "/cargarhistorial":
-            # Cargar chats anteriores
+        elif command.startswith("/loadhistory") or command.startswith("/cargarhistorial"):
+            # Carga historial reactiva
             self.load_and_show_history()
             self._update_status_bar()
         elif command.startswith("/mcp"):
@@ -283,13 +275,13 @@ class ChatApp(App):
         
     def _update_status_bar(self):
         """Actualiza la barra de estado con información actualizada."""
+        # Only update reactive status_text; UI updates via watch_status_text
         self.status_text = f"Modelo: {self.model} | Tokens: {self.token_count} | TPS: {self.tokens_per_second:.1f} | Streaming: {'Activado' if self.stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
-        status_widget = self.query_one("#status_text", Static)
-        status_widget.update(self.status_text)
-    
+
     async def action_limpiar_historial(self):
         """Limpia el historial de la sesión y del archivo."""
         clear_history(HIST_FILE)
+        # Reset reactive properties
         self.history = []
         self.token_count = 0
         self._update_status_bar()
@@ -372,3 +364,16 @@ class ChatApp(App):
     def action_salir(self):
         """Sale de la aplicación TUI."""
         self.exit()
+
+    def watch_status_text(self, new_text: str) -> None:
+        # Omitir antes de completar montaje
+        if getattr(self, '_initializing', True):
+            return
+        try:
+            self.query_one("#status_text", Static).update(new_text)
+        except Exception:
+            return
+
+    def watch_history(self, new_history: list) -> None:
+        # No-op: usamos montajes manuales en on_input_submitted
+        return

@@ -4,6 +4,7 @@ except ImportError:
     ollama = None
 import requests
 import json
+import subprocess
 
 class OllamaProvider:
     def __init__(self, model="llama2"):
@@ -92,3 +93,34 @@ class OllamaProvider:
                 self.history.append({"role": "assistant", "content": full_response})
         except Exception as e:
             yield f"[Ollama] Error HTTP streaming: {e}"
+
+    @staticmethod
+    def list_local_models():
+        """Lists locally available Ollama models."""
+        if ollama:
+            try:
+                models = ollama.list()
+                return [model['name'] for model in models.get('models', [])]
+            except Exception as e:
+                print(f"[Ollama] Error using ollama library to list models: {e}. Falling back to CLI.")
+        
+        # Fallback to CLI if library not available or fails
+        try:
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, check=True)
+            lines = result.stdout.strip().split('\n')
+            model_names = []
+            if len(lines) > 1: # Check if there are any models listed after the header
+                for line in lines[1:]: # Skip header line
+                    parts = line.split()
+                    if parts:
+                        model_names.append(parts[0])
+            return model_names
+        except FileNotFoundError:
+            print("[Ollama] Error: 'ollama' command not found. Make sure Ollama is installed and in your PATH.")
+            return []
+        except subprocess.CalledProcessError as e:
+            print(f"[Ollama] Error executing 'ollama list': {e.stderr}")
+            return []
+        except Exception as e:
+            print(f"[Ollama] An unexpected error occurred while listing models: {e}")
+            return []

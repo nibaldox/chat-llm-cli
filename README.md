@@ -82,6 +82,12 @@ La TUI ofrece las siguientes funcionalidades:
 +   - `/export` o `/exportar`: Exportar historial
 +   - `/loadhistory` o `/cargarhistorial`: Cargar chats anteriores
 +   - `/mcp on|off` o `/mcp activar|desactivar`: Activar/desactivar Model Context Protocol
++ 
++**Mejoras de performance y diseño**
++- Batch de tokens en streaming (flush cada 5 tokens o 200ms) para reducir renders.
++- Lazy loading de `rich.markdown.Markdown` solo cuando sea necesario.
++- Actualizaciones reactivas del historial y barra de estado usando `textual.reactive`.
++- Renderizado de Markdown enriquecido en la TUI.
 
 ## Configuración de claves/API
 - **OpenAI**: Define la variable de entorno `OPENAI_API_KEY` o edita el código para tu clave.
