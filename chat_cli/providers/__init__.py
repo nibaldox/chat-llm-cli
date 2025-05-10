@@ -4,4 +4,4 @@ from .gemini import *
 from .anthropic import *
 
 def get_provider_names():
-    return ["openai", "ollama", "gemini", "anthropic"]
+    return ["ollama", "openai", "gemini", "anthropic"]

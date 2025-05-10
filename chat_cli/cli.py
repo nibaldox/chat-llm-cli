@@ -92,7 +92,7 @@ def _run_tui_session(provider_instance, model: str, stream: bool):
 
 @app.command()
 def chat(
-    provider: str = typer.Option(..., "-p", "--provider", help="Proveedor LLM (openai, gemini, ollama, anthropic)", rich_help_panel="Configuración del Chat"),
+    provider: str = typer.Option(..., "-p", "--provider", help="Proveedor LLM (ollama, gemini, openai, anthropic)", rich_help_panel="Configuración del Chat"),
     model: str = typer.Option(None, "-m", "--model", help="Modelo a usar (opcional)", rich_help_panel="Configuración del Chat"),
     stream: bool = typer.Option(False, "-s", "--stream", help="Activar streaming de tokens", rich_help_panel="Configuración del Chat"),
     mcp: bool = typer.Option(False, "--mcp", help="Activar Model Context Protocol (Anthropic)", rich_help_panel="Configuración del Chat")
