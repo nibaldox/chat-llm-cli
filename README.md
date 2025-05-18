@@ -6,7 +6,7 @@ Aplicación de terminal en Python para chatear con modelos LLM vía Ollama, Open
 
 1. **Clona el repositorio y entra al directorio:**
    ```sh
-   git clone <URL_DEL_REPOSITORIO_AQUI> # Reemplazar con la URL real del repositorio
+   git clone <URL_DEL_REPOSITORIO_AQUI> # Asegúrate de reemplazar esto con la URL real de tu repositorio
    cd 03_chat_LLM
    ```
 
@@ -104,11 +104,50 @@ python -m chat_cli limpiar-historial
 python -m chat_cli exportar-historial-txt nombre_del_archivo.txt
 ```
 
-## Configuración de Claves API y Requisitos de Proveedores
-*   **OpenAI**: Define la variable de entorno `OPENAI_API_KEY`.
-*   **Anthropic**: Define la variable de entorno `ANTHROPIC_API_KEY`.
-*   **Gemini**: (La configuración dependerá de la implementación final del SDK de Google Gemini).
-*   **Ollama**: Asegúrate de que el servicio de Ollama esté ejecutándose localmente (generalmente con `ollama serve`). La aplicación detectará tus modelos locales.
+## Configuración Avanzada: `config.yaml`
+
+Esta aplicación utiliza un archivo `config.yaml` en la raíz del proyecto para gestionar de forma centralizada las claves API y los modelos por defecto para cada proveedor. Este método es ahora la forma principal de configurar el acceso a los proveedores.
+
+**Prioridad de Configuración:**
+
+La aplicación utiliza la siguiente jerarquía para determinar la configuración (de mayor a menor prioridad):
+1.  Parámetros directos pasados por línea de comandos (ej: `--model mi_modelo_especifico`).
+2.  Valores definidos en el archivo `config.yaml`.
+3.  Variables de entorno del sistema (ej: `OPENAI_API_KEY`).
+4.  Valores por defecto codificados en la aplicación.
+
+**Creación y Estructura de `config.yaml`:**
+
+Debes crear este archivo manualmente en la raíz del proyecto (`03_chat_LLM/config.yaml`).
+
+Aquí tienes un ejemplo de su estructura:
+
+```yaml
+# Ejemplo de config.yaml
+
+# Claves API
+openai_api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+anthropic_api_key: "sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+gemini_api_key: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Ollama no requiere clave API por defecto, pero podrías añadir configuraciones futuras aquí.
+
+# Modelos por defecto (opcional, si no se especifican se usarán los predeterminados por el proveedor)
+default_openai_model: "gpt-4-turbo-preview"
+default_anthropic_model: "claude-3-opus-20240229"
+default_gemini_model: "gemini-pro"
+default_ollama_model: "llama2"
+
+# Otras configuraciones específicas del proveedor (ejemplo)
+# ollama_host: "http://localhost:11434" # Si necesitas personalizar el host de Ollama
+```
+
+**Notas Importantes:**
+*   **OpenAI**: Define `openai_api_key` en `config.yaml` o la variable de entorno `OPENAI_API_KEY`.
+*   **Anthropic**: Define `anthropic_api_key` en `config.yaml` o la variable de entorno `ANTHROPIC_API_KEY`.
+*   **Gemini**: Define `gemini_api_key` en `config.yaml`. (La configuración final dependerá de la implementación del SDK de Google Gemini).
+*   **Ollama**: Por lo general, no requiere una clave API. Asegúrate de que el servicio de Ollama esté ejecutándose localmente (ej: `ollama serve`). Puedes especificar `default_ollama_model` en `config.yaml`.
+
+**Seguridad:** El archivo `config.yaml` está incluido en `.gitignore` por defecto para evitar que subas tus claves API accidentalmente a un repositorio. **No elimines esta entrada de `.gitignore` si tu repositorio es público o compartido.**
 
 ## Model Context Protocol (M.C.P)
 
@@ -133,6 +172,7 @@ El soporte de M.C.P sigue siendo experimental y se refinará.
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── cli.py
+│   ├── config.py
 │   ├── history.py
 │   ├── tui.py  # Contiene la lógica de la Interfaz de Usuario de Texto
 │   └── providers/
@@ -141,6 +181,7 @@ El soporte de M.C.P sigue siendo experimental y se refinará.
 │       ├── gemini.py
 │       ├── ollama.py
 │       └── openai.py
+├── config.yaml
 ├── requirements.txt
 ├── PLAN_IMPLEMENTACION.md
 ├── RDP_PROYECTO.md
@@ -157,4 +198,4 @@ El soporte de M.C.P sigue siendo experimental y se refinará.
 
 ---
 
-Desarrollado por NAV.
+creado por N.A.V.

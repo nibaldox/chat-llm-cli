@@ -5,10 +5,19 @@ except ImportError:
 import requests
 import json
 import subprocess
+from chat_cli.config import get_default_model as config_get_default_model
+
+DEFAULT_OLLAMA_MODEL = "llama2"
 
 class OllamaProvider:
-    def __init__(self, model="llama2"):
-        self.model = model
+    def __init__(self, model: str = None):
+        _resolved_model = model
+        if not _resolved_model:
+            _resolved_model = config_get_default_model('ollama')
+        if not _resolved_model:
+            _resolved_model = DEFAULT_OLLAMA_MODEL
+        
+        self.model = _resolved_model
         self.history = []
 
     def send_message(self, prompt):

@@ -13,6 +13,7 @@ import os
 import json
 import requests
 from typing import Dict, List, Any, Generator, Optional, Union
+from chat_cli.config import get_api_key as config_get_api_key, get_default_model as config_get_default_model
 
 # Constantes para la API de Anthropic
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
@@ -30,17 +31,30 @@ class AnthropicProvider:
     del Model Context Protocol para acceder a recursos externos y herramientas.
     """
     
-    def __init__(self, api_key=None, model=DEFAULT_MODEL, mcp_enabled=MCP_ENABLED):
+    def __init__(self, api_key: str = None, model: str = None, mcp_enabled: bool = MCP_ENABLED):
         """
         Inicializa el proveedor de Anthropic.
         
         Args:
-            api_key: Clave de API de Anthropic. Si no se proporciona, se intenta obtener de ANTHROPIC_API_KEY.
-            model: Modelo de Anthropic a utilizar (por defecto: claude-3-opus-20240229).
+            api_key: Clave de API de Anthropic. Si no se proporciona, se busca en config/env.
+            model: Modelo de Anthropic a utilizar. Si no se proporciona, se busca en config/default.
             mcp_enabled: Si es True, activa el soporte para Model Context Protocol.
         """
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "API_KEY_AQUI")
-        self.model = model
+        _resolved_api_key = api_key # API key passed to constructor takes precedence
+        if not _resolved_api_key:
+            _resolved_api_key = config_get_api_key('anthropic') # Try config file
+        if not _resolved_api_key:
+            _resolved_api_key = os.getenv('ANTHROPIC_API_KEY') # Try environment variable
+        
+        self.api_key = _resolved_api_key # Store resolved API key (can be None)
+        
+        _resolved_model = model # Model passed to constructor takes precedence
+        if not _resolved_model:
+            _resolved_model = config_get_default_model('anthropic') # Try config file
+        if not _resolved_model: 
+            _resolved_model = DEFAULT_MODEL # Default fallback from constants in this file
+
+        self.model = _resolved_model
         self.history = []
         self.mcp_enabled = mcp_enabled
         self.mcp_servers = []  # Lista de servidores MCP conectados

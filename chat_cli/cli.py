@@ -21,13 +21,13 @@ def _get_provider_instance(provider_name: str, model: str = None, stream: bool =
     """Initializes and returns a provider instance."""
     try:
         if provider_name == "openai":
-            return OpenAIProvider(model=model or "gpt-3.5-turbo")
+            return OpenAIProvider(model=model) 
         elif provider_name == "ollama":
-            return OllamaProvider(model=model or "llama2") 
+            return OllamaProvider(model=model) 
         elif provider_name == "gemini":
-            return GeminiProvider() 
+            return GeminiProvider(model=model) 
         elif provider_name == "anthropic":
-            anth_provider = AnthropicProvider(model=model or "claude-3-opus-20240229", mcp_enabled=mcp)
+            anth_provider = AnthropicProvider(model=model, mcp_enabled=mcp) 
             if mcp:
                 console.print("Model Context Protocol (M.C.P) activado para Anthropic.")
             return anth_provider
@@ -168,7 +168,8 @@ def _select_chat_options():
         model_name = Prompt.ask("Ingresa el nombre del modelo OpenAI", default=OpenAIProvider().model)
     elif provider_name == "anthropic":
         model_name = Prompt.ask("Ingresa el nombre del modelo Anthropic", default=AnthropicProvider().model)
-    # Gemini might not require a model name, or add prompt if needed
+    elif provider_name == "gemini":
+        model_name = Prompt.ask("Ingresa el nombre del modelo Gemini (opcional, Enter para default)", default=GeminiProvider().model)
 
     stream_chat = Confirm.ask("¿Activar streaming de tokens?", default=False)
     mcp_chat = False

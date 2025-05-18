@@ -113,3 +113,6 @@ venv.bak/
 
 # History files
 history.json
+
+# User-specific configuration file
+config.yaml
