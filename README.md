@@ -37,7 +37,8 @@ Al iniciar, se te presentará un menú dentro de la TUI para:
 1.  Seleccionar el **Proveedor LLM** (Ollama, OpenAI, Gemini, Anthropic).
 2.  Seleccionar el **Modelo**:
     *   Para **Ollama**, se listarán automáticamente los modelos que tengas instalados localmente.
-    *   Para otros proveedores, podrás ingresar el nombre del modelo.
+    *   Para **OpenAI**, la aplicación intentará listar los modelos compatibles más comunes (ej. "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"). Podrás seleccionar uno de la lista o elegir ingresar un nombre de modelo manualmente.
+    *   Para otros proveedores (Gemini, Anthropic), podrás ingresar el nombre del modelo directamente.
 3.  Configurar opciones adicionales como **Streaming** de tokens y **Model Context Protocol (MCP)** para Anthropic.
 
 Una vez configurado, presiona "Iniciar Chat" para comenzar tu sesión en la TUI.
@@ -144,7 +145,7 @@ default_ollama_model: "llama2"
 **Notas Importantes:**
 *   **OpenAI**: Define `openai_api_key` en `config.yaml` o la variable de entorno `OPENAI_API_KEY`.
 *   **Anthropic**: Define `anthropic_api_key` en `config.yaml` o la variable de entorno `ANTHROPIC_API_KEY`.
-*   **Gemini**: Define `gemini_api_key` en `config.yaml`. (La configuración final dependerá de la implementación del SDK de Google Gemini).
+*   **Gemini**: Define `gemini_api_key` en `config.yaml` o la variable de entorno `GEMINI_API_KEY`. La integración con Gemini está completamente funcional.
 *   **Ollama**: Por lo general, no requiere una clave API. Asegúrate de que el servicio de Ollama esté ejecutándose localmente (ej: `ollama serve`). Puedes especificar `default_ollama_model` en `config.yaml`.
 
 **Seguridad:** El archivo `config.yaml` está incluido en `.gitignore` por defecto para evitar que subas tus claves API accidentalmente a un repositorio. **No elimines esta entrada de `.gitignore` si tu repositorio es público o compartido.**

@@ -23,6 +23,88 @@ class ChatApp(App):
     """Textual-based TUI para Chat CLI con historial, atajos y mejoras visuales."""
     
     TITLE = "Chat LLM TUI"
+    CSS = """
+    App {
+        background: black;
+        color: white;
+    }
+    Header {
+        background: black;
+        color: white;
+        text-style: bold;
+        height: 1; /* Ensure header is compact */
+    }
+    Footer {
+        background: black;
+        color: grey; /* Less emphasis for footer text */
+        height: 1; /* Ensure footer is compact */
+    }
+    Input {
+        background: rgb(30,30,30);
+        color: white;
+        border: round grey;
+    }
+    Input:focus {
+        border: round cyan;
+    }
+    ScrollableContainer#messages_panel {
+        background: black;
+    }
+    Static#status_text {
+        background: black;
+        color: grey;       /* Default text to grey for labels */
+        dock: bottom;
+        height: 1;
+        padding: 0 1;      /* Add padding */
+    }
+    /* Styling for user messages */
+    Panel { /* Default Panel styling, can be overridden by specific classes */
+        padding: 0 1; /* Add some horizontal padding to all panels */
+    }
+    Static.user_message Panel {
+        border: round cyan; /* Combined border-style and border_foreground */
+    }
+    Static.llm_message Panel {
+        border: round blue;
+    }
+    Static.llm_message Markdown { /* Default text color for markdown inside LLM panels */
+        color: white;
+    }
+    Static.llm_message Markdown code_block { /* Markdown code blocks */
+        background: rgb(35,35,40);
+        color: #AFEEEE; /* PaleTurquoise */
+        padding: 1 2;
+        border: round rgb(60,60,60);
+    }
+    Static.llm_message Markdown code { /* Inline code */
+        background: rgb(50,50,50);
+        color: #AFEEEE; /* PaleTurquoise */
+        padding: 0 1;
+    }
+    Static.llm_message Markdown b, Static.llm_message Markdown strong { /* Bold text */
+        color: #FFFFE0; /* LightYellow */
+        text-style: bold;
+    }
+    Static.llm_message Markdown a { /* Links */
+        color: #ADD8E6; /* LightBlue */
+        text-style: underline;
+    }
+    Static.llm_message Markdown h1, Static.llm_message Markdown h2, Static.llm_message Markdown h3 {
+        text-style: bold;
+        color: #ADD8E6; /* LightBlue for headings */
+    }
+    Static.info_message Panel {
+        border: round grey;
+    }
+    Static.error_message Panel {
+        border: round red;
+    }
+    Static.help_message Panel { /* Specific style for help panel border */
+        border: round #00FFFF; /* Cyan border for help */
+    }
+    /* Note: Styling panel titles directly with CSS (e.g., .user_message .panel--title)
+       is unreliable with Rich Panels in Textual. Titles are styled with BBCode in Python. */
+    """
     BINDINGS = [
         Binding("ctrl+l", "limpiar_historial", "Limpiar historial"),
         Binding("ctrl+e", "exportar_historial", "Exportar historial"),
@@ -60,6 +142,8 @@ class ChatApp(App):
         # Carga reactiva de historial; la UI se actualizará en watch_history
         try:
             self.history = load_history(HIST_FILE)
+            if not self.history: # Ensure history is not None if file was empty/corrupt
+                self.history = []
         except Exception:
             self.history = []
 
@@ -81,8 +165,8 @@ class ChatApp(App):
             widget.remove()
         # Mensaje de bienvenida
         panel.mount(Static(Align(Panel(
-            "Chat limpio. Escribe /loadhistory para ver chats anteriores.", title="Info", border_style="cyan"
-        ), align="center")))
+            "Chat limpio. Escribe /loadhistory para ver chats anteriores.", title="[bold grey]Info[/]"
+        ), align="center"), classes="info_message")) # Added class for styling
         # Set initial status_text
         self.status_text = self._initial_status_text
         # Load history after UI listo
@@ -108,7 +192,8 @@ class ChatApp(App):
         save_history(self.history, HIST_FILE)
         # Mostrar mensaje del usuario inmediatamente
         panel = self.query_one("#messages_panel", ScrollableContainer)
-        user_widget = Static(Align(Panel(text, title=f"Tú [{self.last_activity}]", border_style="green"), align="left"))
+        # Using Rich BBCode for title color as CSS targeting panel titles is unreliable
+        user_widget = Static(Align(Panel(text, title=f"[bold #00FFFF]Tú[/] [{self.last_activity}]"), align="left"), classes="user_message")
         await panel.mount(user_widget)
         panel.scroll_end(animate=False)
         event.input.value = ""
@@ -121,9 +206,8 @@ class ChatApp(App):
             # Mostrar indicador de "pensando..."
             thinking_widget = Static(Align(Panel(
                 "Pensando...", 
-                title="Estado", 
-                border_style="yellow"
-            ), align="center"))
+                title="[bold grey]Estado[/]" # Styled title
+            ), align="center"), classes="info_message") # Added class
             panel = self.query_one("#messages_panel", ScrollableContainer)
             await panel.mount(thinking_widget)
             panel.scroll_end(animate=False)
@@ -134,11 +218,11 @@ class ChatApp(App):
                 
                 # Crear widget para respuesta en streaming
                 timestamp = datetime.now().strftime("%H:%M:%S")
+                # Using Rich BBCode for title color
                 resp_widget = Static(Align(Panel(
                     "", 
-                    title=f"LLM [{timestamp}]", 
-                    border_style="blue"
-                ), align="right"))
+                    title=f"[bold #ADD8E6]LLM[/] [{timestamp}]" # LightBlue for LLM title
+                ), align="right"), classes="llm_message")
                 await panel.mount(resp_widget)
                 
                 # Iniciar conteo de tokens por segundo
@@ -170,9 +254,8 @@ class ChatApp(App):
                     if len(batch_tokens) >= 5 or (current_time - last_flush) >= flush_interval:
                         from rich.markdown import Markdown
                         resp_widget.update(Align(Panel(
-                            Markdown(full_response),
-                            title=f"LLM [{timestamp}]",
-                            border_style="blue"
+                            Markdown(full_response), # Markdown content
+                            title=f"[bold #ADD8E6]LLM[/] [{timestamp}]" # Keep title styled
                         ), align="right"))
                         panel.scroll_end(animate=False)
                         self._update_status_bar()
@@ -189,9 +272,8 @@ class ChatApp(App):
                 if batch_tokens:
                     from rich.markdown import Markdown
                     resp_widget.update(Align(Panel(
-                        Markdown(full_response),
-                        title=f"LLM [{timestamp}]",
-                        border_style="blue"
+                        Markdown(full_response), # Markdown content
+                        title=f"[bold #ADD8E6]LLM[/] [{timestamp}]" # Keep title styled
                     ), align="right"))
                     panel.scroll_end(animate=False)
                 
@@ -210,6 +292,14 @@ class ChatApp(App):
                 self.token_count += len(response.split())
                 self._update_status_bar()
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # Render assistant message directly, now with Markdown for consistency
+                assistant_widget = Static(Align(Panel(
+                    Markdown(response), # Render as Markdown
+                    title=f"[bold #ADD8E6]LLM[/] [{ts}]"
+                ), align="right"), classes="llm_message")
+                await panel.mount(assistant_widget)
+                panel.scroll_end(animate=False)
+
                 self.history = self.history + [{"role": "assistant", "content": response, "timestamp": ts}]
                 save_history(self.history, HIST_FILE)
         except Exception as e:
@@ -220,9 +310,8 @@ class ChatApp(App):
             panel = self.query_one("#messages_panel", ScrollableContainer)
             await panel.mount(Static(Align(Panel(
                 error_msg, 
-                title="Error", 
-                border_style="red"
-            ), align="center")))
+                title="[bold red]Error[/]" # Styled title
+            ), align="center"), classes="error_message"))
             panel.scroll_end(animate=False)
 
     async def _process_command(self, text):
@@ -230,53 +319,63 @@ class ChatApp(App):
         panel = self.query_one("#messages_panel", ScrollableContainer)
         command = text.lower().strip()
         
-        if command == "/help" or command == "/ayuda":
+        if command in ("/help", "/ayuda"):
             await self.action_mostrar_ayuda()
-        elif command == "/clear" or command == "/limpiar":
+        elif command in ("/clear", "/limpiar"):
             await self.action_limpiar_pantalla()
-        elif command == "/clearhistory" or command == "/limpiarhistorial":
+        elif command in ("/clearhistory", "/limpiarhistorial"):
             await self.action_limpiar_historial()
-        elif command == "/export" or command == "/exportar":
+        elif command in ("/export", "/exportar"):
             await self.action_exportar_historial()
         elif command.startswith("/loadhistory") or command.startswith("/cargarhistorial"):
-            # Carga historial reactiva
             self.load_and_show_history()
             self._update_status_bar()
         elif command.startswith("/mcp"):
-            # Comando para activar/desactivar MCP (pendiente implementación completa)
+            mcp_info_title = "[bold grey]Info MCP[/]"
             if " on" in command or " activar" in command:
                 self.mcp_enabled = True
                 await panel.mount(Static(Align(Panel(
                     "Model Context Protocol activado", 
-                    title="Info", 
-                    border_style="yellow"
-                ), align="center")))
+                    title=mcp_info_title
+                ), align="center"), classes="info_message"))
             elif " off" in command or " desactivar" in command:
                 self.mcp_enabled = False
                 await panel.mount(Static(Align(Panel(
                     "Model Context Protocol desactivado", 
-                    title="Info", 
-                    border_style="yellow"
-                ), align="center")))
+                    title=mcp_info_title
+                ), align="center"), classes="info_message"))
             else:
                 await panel.mount(Static(Align(Panel(
                     "Uso: /mcp on|off o /mcp activar|desactivar", 
-                    title="Info", 
-                    border_style="yellow"
-                ), align="center")))
+                    title=mcp_info_title
+                ), align="center"), classes="info_message"))
             self._update_status_bar()
         else:
             await panel.mount(Static(Align(Panel(
                 f"Comando desconocido: {text}. Escribe /help para ver los comandos disponibles.", 
-                title="Info", 
-                border_style="yellow"
-            ), align="center")))
+                title="[bold grey]Info[/]"
+            ), align="center"), classes="info_message"))
         panel.scroll_end(animate=False)
         
     def _update_status_bar(self):
-        """Actualiza la barra de estado con información actualizada."""
-        # Only update reactive status_text; UI updates via watch_status_text
-        self.status_text = f"Modelo: {self.model} | Tokens: {self.token_count} | TPS: {self.tokens_per_second:.1f} | Streaming: {'Activado' if self.stream else 'Desactivado'} | MCP: {'Activado' if self.mcp_enabled else 'Desactivado'}"
+        """Actualiza la barra de estado con información actualizada usando Rich BBCode."""
+        dim_color = "#9E9E9E"  # Grey for labels
+        value_color = "#D0D0D0" # Light grey for values
+        separator = f"[{dim_color}]|[/]"
+
+        model_str = f"[{dim_color}]Modelo:[/] [{value_color}]{self.model}[/]"
+        tokens_str = f"[{dim_color}]Tokens:[/] [{value_color}]{self.token_count}[/]"
+        tps_str = f"[{dim_color}]TPS:[/] [{value_color}]{self.tokens_per_second:.1f}[/]"
+
+        stream_status_text = "Activado" if self.stream else "Desactivado"
+        stream_color = "green" if self.stream else "red"
+        stream_str = f"[{dim_color}]Streaming:[/] [{stream_color}]{stream_status_text}[/]"
+
+        mcp_status_text = "Activado" if self.mcp_enabled else "Desactivado"
+        mcp_color = "green" if self.mcp_enabled else "red"
+        mcp_str = f"[{dim_color}]MCP:[/] [{mcp_color}]{mcp_status_text}[/]"
+
+        self.status_text = f"{model_str} {separator} {tokens_str} {separator} {tps_str} {separator} {stream_str} {separator} {mcp_str}"
 
     async def action_limpiar_historial(self):
         """Limpia el historial de la sesión y del archivo."""
@@ -294,9 +393,8 @@ class ChatApp(App):
             
         panel.mount(Static(Align(Panel(
             "Historial limpiado correctamente.", 
-            title="Info", 
-            border_style="yellow"
-        ), align="center")))
+            title="[bold grey]Info[/]"
+        ), align="center"), classes="info_message"))
         panel.scroll_end(animate=False)
         
     async def action_limpiar_pantalla(self):
@@ -310,9 +408,8 @@ class ChatApp(App):
             
         panel.mount(Static(Align(Panel(
             "Pantalla limpiada. El historial sigue guardado.", 
-            title="Info", 
-            border_style="yellow"
-        ), align="center")))
+            title="[bold grey]Info[/]"
+        ), align="center"), classes="info_message"))
         panel.scroll_end(animate=False)
         
     async def action_exportar_historial(self):
@@ -322,31 +419,29 @@ class ChatApp(App):
             panel = self.query_one("#messages_panel", ScrollableContainer)
             panel.mount(Static(Align(Panel(
                 f"Historial exportado a {EXPORT_FILE}", 
-                title="Info", 
-                border_style="yellow"
-            ), align="center")))
+                title="[bold grey]Info[/]"
+            ), align="center"), classes="info_message"))
             panel.scroll_end(animate=False)
         except Exception as e:
             panel = self.query_one("#messages_panel", ScrollableContainer)
             panel.mount(Static(Align(Panel(
                 f"Error al exportar: {e}", 
-                title="Error", 
-                border_style="red"
-            ), align="center")))
+                title="[bold red]Error[/]"
+            ), align="center"), classes="error_message"))
             panel.scroll_end(animate=False)
             
     async def action_mostrar_ayuda(self):
         """Muestra información de ayuda sobre comandos y atajos."""
         panel = self.query_one("#messages_panel", ScrollableContainer)
         help_text = """
-        ATAJOS DE TECLADO:
+        [bold]ATAJOS DE TECLADO:[/bold]
         - Ctrl+L: Limpiar historial (borra todo el historial guardado).
         - Ctrl+C: Limpiar pantalla (mantiene el historial guardado).
         - Ctrl+E: Exportar historial a texto plano.
         - Ctrl+H: Mostrar esta ayuda.
         - Ctrl+Q: Salir de la aplicación.
 
-        COMANDOS (escribir en el campo de texto):
+        [bold]COMANDOS (escribir en el campo de texto):[/bold]
         - /help o /ayuda: Muestra esta ayuda.
         - /clear o /limpiar: Limpia la pantalla.
         - /clearhistory o /limpiarhistorial: Borra todo el historial.
@@ -354,11 +449,11 @@ class ChatApp(App):
         - /loadhistory o /cargarhistorial: Carga chats anteriores guardados.
         - /mcp on|off: Activa/desactiva Model Context Protocol (experimental).
         """
+        # Help panel uses its own class for specific border color
         panel.mount(Static(Align(Panel(
             help_text, 
-            title="Ayuda", 
-            border_style="cyan"
-        ), align="center")))
+            title="[bold #00FFFF]Ayuda[/]" # Cyan for Help title, matches border
+        ), align="center"), classes="help_message"))
         panel.scroll_end(animate=False)
         
     def action_salir(self):
@@ -375,5 +470,18 @@ class ChatApp(App):
             return
 
     def watch_history(self, new_history: list) -> None:
-        # No-op: usamos montajes manuales en on_input_submitted
+        # No-op: History rendering is handled by on_input_submitted and load_and_show_history
+        # If we want reactive history display, this is where it would go.
+        if self._initializing: # Avoid updates during setup
+            return
+
+        # Example of how reactive history display could work (currently not fully used for messages):
+        # panel = self.query_one("#messages_panel", ScrollableContainer)
+        # for child in panel.children: # Clear existing messages if redrawing all
+        #     child.remove()
+        # for message in new_history:
+        #     # This part would need to replicate the styling logic from on_input_submitted
+        #     # and _render_message_widget or similar helper.
+        #     # For simplicity, current implementation mounts messages directly.
+        #     pass
         return

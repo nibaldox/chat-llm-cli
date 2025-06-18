@@ -3,3 +3,4 @@ ollama
 rich
 textual
 PyYAML
+google-generativeai

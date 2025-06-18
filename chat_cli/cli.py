@@ -165,7 +165,32 @@ def _select_chat_options():
             console.print("No se detectaron modelos locales de Ollama o hubo un error.")
             model_name = Prompt.ask("Ingresa el nombre del modelo Ollama", default=OllamaProvider().model)
     elif provider_name == "openai":
-        model_name = Prompt.ask("Ingresa el nombre del modelo OpenAI", default=OpenAIProvider().model)
+        # Try to list models
+        console.print("Detectando modelos de OpenAI...")
+        openai_provider_for_listing = OpenAIProvider() # No model needed for listing
+        available_models = openai_provider_for_listing.list_models()
+
+        default_model = OpenAIProvider().model # Get default model for fallback prompt
+
+        if available_models:
+            choices = available_models + ["(Ingresar manualmente)"]
+            # Try to set a sensible default from the list, fallback to provider's default
+            prompt_default = default_model
+            if default_model in available_models:
+                prompt_default = default_model
+            elif available_models: # If default not in list, pick first from list
+                prompt_default = available_models[0]
+
+            model_name = Prompt.ask(
+                "Selecciona un modelo de OpenAI",
+                choices=choices,
+                default=prompt_default
+            )
+            if model_name == "(Ingresar manualmente)":
+                model_name = Prompt.ask("Ingresa el nombre del modelo OpenAI", default=default_model)
+        else:
+            console.print("No se pudieron listar modelos de OpenAI (API Key podría faltar o ser inválida).")
+            model_name = Prompt.ask("Ingresa el nombre del modelo OpenAI", default=default_model)
     elif provider_name == "anthropic":
         model_name = Prompt.ask("Ingresa el nombre del modelo Anthropic", default=AnthropicProvider().model)
     elif provider_name == "gemini":

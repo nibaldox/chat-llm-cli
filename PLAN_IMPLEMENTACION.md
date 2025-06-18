@@ -1,5 +1,8 @@
 # Plan de Implementación
 
+**Historial de Cambios Recientes:**
+*   2024-05-26: Implementada integración completa con API de Google Gemini. Añadida funcionalidad de listado de modelos OpenAI en la configuración TUI. Actualizada documentación.
+
 ## Objetivo
 Realizar una CLI en Python para chatear con modelos LLM (Ollama, OpenAI y Gemini), incluyendo historial, streaming y robustez.
 
@@ -23,7 +26,7 @@ Realizar una CLI en Python para chatear con modelos LLM (Ollama, OpenAI y Gemini
 
 ### Fase 3 – Abstracción de Proveedores
 - [x] Crear clase base para proveedores.
-- [x] Implementar clase inicial `GeminiProvider` (simulación de respuesta).
+- [x] Implementar clase `GeminiProvider` con integración real API.
 - [x] Implementar adaptadores reales en `providers/openai.py` y `providers/ollama.py`.
 
 ### Fase 4 – CLI y Flujo Principal
@@ -90,9 +93,9 @@ A continuación, se enumeran las mejoras propuestas para futuras versiones del p
         *   `config.yaml` ha sido añadido a `.gitignore` para proteger información sensible.
     *   [ ] Permitir perfiles de configuración (ej. "trabajo", "personal").
 4.  **Integración Completa de Gemini:**
-    *   Finalizar la integración con la API real de Google Gemini.
+    *   [x] Finalizar la integración con la API real de Google Gemini.
 5.  **Interfaz TUI Mejorada:**
-    *   Obtener y listar modelos disponibles desde la API del proveedor (si es posible).
+    *   [x] Obtener y listar modelos disponibles desde la API del proveedor (si es posible) - Implementado para Ollama (local) y OpenAI (modelos GPT).
     *   Mejorar indicadores visuales (MCP, streaming).
     *   Opciones de personalización de la TUI (colores, disposición).
 6.  **Manejo de Errores y Feedback Mejorado:**
